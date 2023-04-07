@@ -48,7 +48,7 @@ class Player(User):
         self.info = RegInfo()
 
     def __str__(self):
-        return super().__str__()
+        return self.__repr__()
 
     def __repr__(self):
         info = super().__repr__()
@@ -73,16 +73,20 @@ class Admin(User):
     def check_player(self, tag='', id=0):
         if id in Bot.players:
             with open("photos/" + Bot.players[id].tag + ".jpg", "rb") as photo:
-                name = f"*{Bot.players[id].info}*\n"
-                Bot.bot.send_photo(self.id, photo, caption=name + str(Bot.players[id]))#, parse_mode='Markdown')
+                info = f"*{Bot.players[id].info}*\n" + str(Bot.players[id]).replace('_', '\\_')
+                Bot.bot.send_photo(self.id, photo, caption=info, parse_mode='Markdown')
         elif (p := Bot.get(tag)) is not None:
             with open("photos/" + tag + ".jpg", "rb") as photo:
-                name = f"*{p.info}*\n"
-                Bot.bot.send_photo(self.id, photo, caption=name + p.__repr__(), parse_mode='Markdown')
+                info = f"*{p.info}*\n" + str(p).replace('_', '\\_')
+                Bot.bot.send_photo(self.id, photo, caption=info, parse_mode='Markdown')
         return
 
     def check_players(self):
-        res = str(list(map(str, Bot.players.values())))[1:-1]
+        # res = str(list(map(str, Bot.players.values())))[1:-1]
+        res = []
+        for p in Bot.players.values():
+            res.append(p.tag)
+        res = ','.join(res)
         if res == "":
             res = "Игроков нет"
         Bot.bot.send_message(self.id, res)
@@ -130,7 +134,8 @@ class Bot:
             c_bin.close()
         except:
             pass
-        Bot.bot.polling(none_stop=True, interval=0)
+        # Bot.bot.polling(none_stop=True, interval=0)
+        Bot.bot.infinity_polling(timeout=10, long_polling_timeout=5)
 
     @staticmethod
     def get(name):

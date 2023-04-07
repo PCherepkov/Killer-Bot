@@ -23,11 +23,11 @@ def start(message):
 
 
 def set_info(message):
-    if len(message.text.split()) < 3:
-        msg = Bot.bot.send_message(message.from_user.id, "Неверный формат. Попробуйте ещё раз")
+    args = message.text.split()
+    if len(args) < 3 or not args[2].isnumeric() or int(args[2]) > 6 or int(args[2]) < 1:
+        msg = Bot.bot.send_message(message.from_user.id, "Неверный формат. Попробуйте ещё раз\n(_пример: Пётр Черепков 1 курс_)", parse_mode='markdown')
         Bot.bot.register_next_step_handler(msg, set_info)
         return
-    args = message.text.split()
     name, surname, course = args[0], args[1], args[2]
     Bot.players[message.from_user.id].info.name = name
     Bot.players[message.from_user.id].info.surname = surname
@@ -45,7 +45,7 @@ def set_code(message):
         msg = Bot.bot.send_message(message.from_user.id, "Код не принят. Введите текстовый код")
         Bot.bot.register_next_step_handler(msg, set_code)
         return
-    msg = Bot.bot.send_message(message.from_user.id, "Код принят. Теперь введите имя, фамилию и номер курса через пробел")
+    msg = Bot.bot.send_message(message.from_user.id, "Код принят. Теперь введите имя, фамилию и номер курса через пробел\n_(первому и второму курсу магистратуры соотвествуют 5 и 6 курсы)_", parse_mode="markdown")
     Bot.bot.register_next_step_handler(msg, set_info)
 @Bot.bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
@@ -95,13 +95,8 @@ def register(message):
         f = open("photos/" + user.username + '.jpg', 'wb')
         f.write(photo)
         f.close()
-        try:
-            print(Bot.players[user.id])
-        except:
-            pass
         if Bot.players.get(user.id) is None:
             Bot.players[user.id] = Player(user.first_name, user.username, user.id)
-        print(Bot.admins)
         for admin in Bot.admins:
             keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
             accept = telebot.types.InlineKeyboardButton('✔', callback_data='1 ' + user.username + ' ' + str(Bot.players[user.id].photo))
@@ -143,7 +138,7 @@ def enter_code(message):
         markup.row('Жертва')
         markup.row('Ввести код убитого')
         with open("photos/" + Bot.players[user.id].victim + '.jpg', 'rb') as photo:
-            info = str(Bot.get(Bot.players[user.id].victim).info)
+            info = str(Bot.get(Bot.players[user.id].victim).info).replace('_', '\\_')
             Bot.bot.send_photo(user.id, photo, caption=f'Игрок убит. Вот новая жертва\n*{info}*', reply_markup=markup, parse_mode= 'Markdown')
     else:
         if Bot.players[user.id].tries == 3:
@@ -180,7 +175,7 @@ def get_text_messages(message):
             markup.row('Жертва')
             markup.row('Ввести код убитого')
             with open("photos/" + player.victim + '.jpg', 'rb') as photo:
-                info = str(Bot.get(player.victim).info)
+                info = str(Bot.get(player.victim).info).replace('_', '\\_')
                 Bot.bot.send_photo(player.id, photo, caption=f'Игра началась. Вот ваша первая жертва:*\n{info}*', reply_markup=markup, parse_mode='Markdown')
         for player in Bot.players.values():
             Bot.scheduler.add_job(Bot.kill, 'interval', days=2, args=[player.id], id=player.tag)
@@ -202,8 +197,8 @@ def get_text_messages(message):
             return
         player = Bot.players[user.id]
         with open("photos/" + player.victim + '.jpg', 'rb') as photo:
-            info = str(Bot.get(player.victim).info)
-            Bot.bot.send_photo(player.id, photo, caption=f'Вот ваша жертва:\n{info}', parse_mode='Markdown')
+            info = str(Bot.get(player.victim).info).replace('_', '\\_')
+            Bot.bot.send_photo(player.id, photo, caption=f'Вот ваша жертва:\n*{info}*', parse_mode='Markdown')
     if user.id in Bot.players and message.text == "Профиль":
         if Bot.players[user.id].verified != 2:
             Bot.bot.send_message(user.id, 'Вы ещё не зарегистрированы')
@@ -224,7 +219,7 @@ def get_text_messages(message):
                 info += f"\nСтатус: вне игры"
             else:
                 info += f"\nСтатус: участник"
-            Bot.bot.send_photo(user.id, photo, caption=info, parse_mode='Markdown')
+            Bot.bot.send_photo(user.id, photo, caption=info.replace('_', '\\_'), parse_mode='Markdown')
     if user.id in Bot.admins and message.text == "Список игроков":
         Bot.admins[user.id].check_players()
     if user.id in Bot.admins and message.text == "Профиль игрока":
@@ -236,7 +231,7 @@ def get_text_messages(message):
         L = list(Bot.chain.keys())
         n = len(L)
         while i < n - 1:
-            res += L[i] + " -> "
+            res += L[i] + " -> " + L[i + 1] + "\n"
             i += 1
         res += L[n - 1]
         Bot.bot.send_message(user.id, res)
