@@ -1,7 +1,8 @@
-FROM python:3
+FROM python:3.11.0
 WORKDIR ./
+COPY . .
 RUN pip install apscheduler
 RUN pip install telebot
-EXPOSE 8080
-ENTRYPOINT ["python3", "main.py"]
+CMD ["python3", "main.py"]
+EXPOSE 80/tcp
 
