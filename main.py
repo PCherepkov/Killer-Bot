@@ -1,3 +1,5 @@
+import os
+
 from defin import *
 
 password = "aaa"
@@ -23,61 +25,12 @@ def start(message):
 
 
 def set_info(message):
-    args = message.text.split()
-    if len(args) < 3 or not args[2].isnumeric() or int(args[2]) > 6 or int(args[2]) < 1:
+    user = message.from_user
+    if message.text is None:
         msg = Bot.bot.send_message(message.from_user.id, "Неверный формат. Попробуйте ещё раз\n(_пример: Пётр Черепков 1 курс_)", parse_mode='markdown')
         Bot.bot.register_next_step_handler(msg, set_info)
         return
-    name, surname, course = args[0], args[1], args[2]
-    Bot.players[message.from_user.id].info.name = name
-    Bot.players[message.from_user.id].info.surname = surname
-    Bot.players[message.from_user.id].info.course = course
-    markup = telebot.types.ReplyKeyboardMarkup(True)
-    markup.row('Профиль')
-    markup.row('Жертва')
-    markup.row('Ввести код убитого')
-    Bot.bot.send_message(message.from_user.id, "Регистрация пройдена успешно", reply_markup=markup)
-    with open("players", "wb") as p_bin:
-        pickle.dump(Bot.players, p_bin, protocol=pickle.HIGHEST_PROTOCOL)
-def set_code(message):
-    Bot.players[message.from_user.id].code = message.text
-    if message.text is None:
-        msg = Bot.bot.send_message(message.from_user.id, "Код не принят. Введите текстовый код")
-        Bot.bot.register_next_step_handler(msg, set_code)
-        return
-    msg = Bot.bot.send_message(message.from_user.id, "Код принят. Теперь введите имя, фамилию и номер курса через пробел\n_(первому и второму курсу магистратуры соотвествуют 5 и 6 курсы)_", parse_mode="markdown")
-    Bot.bot.register_next_step_handler(msg, set_info)
-@Bot.bot.callback_query_handler(func=lambda call: True)
-def handle_callback_query(call):
-    data = call.data.split()
-    player = Bot.get(data[1])
-    if data[0] == '1':
-        if player.verified == 1 and player.photo > int(data[2]):
-            Bot.bot.answer_callback_query(call.id, "Это фото уже отклонено")
-            return
-        if player.verified == 2:
-            Bot.bot.answer_callback_query(call.id, "У игрока уже есть одобренное фото")
-            return
-        Bot.players[player.id].verified = 2
-        msg = Bot.bot.send_message(player.id, "Фото успешно прошло проверку. Теперь придумайте свой уникальный код и отправьте его", reply_markup=None)
-        Bot.bot.register_next_step_handler(msg, set_code)
-    elif data[0] == '0':
-        if player.verified == 1 and player.photo > int(data[2]):
-            Bot.bot.answer_callback_query(call.id, "Это фото уже отклонено")
-            return
-        if player.verified == 2:
-            Bot.bot.answer_callback_query(call.id, "У игрока уже есть одобренное фото")
-            return
-        Bot.players[player.id].verified = 1
-        Bot.players[player.id].photo += 1
-        markup = telebot.types.ReplyKeyboardMarkup(True)
-        markup.row('Регистрация')
-        msg = Bot.bot.send_message(player.id, "Фото не прошло проверку. Отправьте другое", reply_markup=markup)
-        Bot.bot.register_next_step_handler(msg, register)
-
-
-def register(message):
-    user = message.from_user
+    args = message.text.split()
     if message.text == password:
         Bot.admins[user.id] = Admin(user.first_name, user.username, user.id)
         markup = telebot.types.ReplyKeyboardMarkup(True)
@@ -87,7 +40,63 @@ def register(message):
         Bot.bot.send_message(message.from_user.id, 'Вход выполнен', reply_markup=markup)
         with open("admins", "wb") as a_bin:
             pickle.dump(Bot.admins, a_bin, protocol=pickle.HIGHEST_PROTOCOL)
-    elif isinstance(message.photo, list):
+        return
+    if len(args) < 3 or not args[2].isnumeric() or int(args[2]) > 6 or int(args[2]) < 1:
+        msg = Bot.bot.send_message(message.from_user.id, "Неверный формат. Попробуйте ещё раз\n(_пример: Пётр Черепков 1 курс_)", parse_mode='markdown')
+        Bot.bot.register_next_step_handler(msg, set_info)
+        return
+    name, surname, course = args[0], args[1], str(int(args[2]))
+    if user.id not in Bot.players.keys():
+        Bot.players[user.id] = Player(user.first_name, user.username, user.id)
+    Bot.players[user.id].info.name = name
+    Bot.players[user.id].info.surname = surname
+    Bot.players[user.id].info.course = course
+    msg = Bot.bot.send_message(user.id, "Теперь отправьте своё фото")
+    Bot.bot.register_next_step_handler(msg, register)
+def set_code(message):
+    Bot.players[message.from_user.id].code = message.text
+    if message.text is None:
+        msg = Bot.bot.send_message(message.from_user.id, "Код не принят. Введите текстовый код")
+        Bot.bot.register_next_step_handler(msg, set_code)
+        return
+    markup = telebot.types.ReplyKeyboardMarkup(True)
+    markup.row('Профиль')
+    markup.row('Жертва')
+    markup.row('Ввести код убитого')
+    Bot.bot.send_message(message.from_user.id, "Регистрация пройдена успешно", reply_markup=markup)
+    with open("players", "wb") as p_bin:
+        pickle.dump(Bot.players, p_bin, protocol=pickle.HIGHEST_PROTOCOL)
+@Bot.bot.callback_query_handler(func=lambda call: True)
+def handle_callback_query(call):
+    data = call.data.split()
+    player = Bot.get(data[1])
+    if data[0] == '1':
+        if player.verified == 1 and player.photo > int(data[2]):
+            Bot.bot.answer_callback_query(call.id, "Эта анкета уже отклонена")
+            return
+        if player.verified == 2:
+            Bot.bot.answer_callback_query(call.id, "У игрока уже есть одобренная анкета")
+            return
+        Bot.players[player.id].verified = 2
+        msg = Bot.bot.send_message(player.id, "Анкета успешно прошла проверку. Теперь придумайте свой уникальный код и отправьте его", reply_markup=None)
+        Bot.bot.register_next_step_handler(msg, set_code)
+    elif data[0] == '0':
+        if player.verified == 1 and player.photo > int(data[2]):
+            Bot.bot.answer_callback_query(call.id, "Эта анкета уже отклонена")
+            return
+        if player.verified == 2:
+            Bot.bot.answer_callback_query(call.id, "У игрока уже есть одобренная анкета")
+            return
+        Bot.players[player.id].verified = 1
+        Bot.players[player.id].photo += 1
+        markup = telebot.types.ReplyKeyboardMarkup(True)
+        markup.row('Регистрация')
+        msg = Bot.bot.send_message(player.id, "Анкета не прошла модерацию. Пройдите регистрацию заново", reply_markup=markup)
+
+
+def register(message):
+    user = message.from_user
+    if isinstance(message.photo, list):
         photo_id = message.photo[-1].file_id
         photo_info = Bot.bot.get_file(photo_id)
         photo_path = photo_info.file_path
@@ -95,8 +104,6 @@ def register(message):
         f = open("photos/" + user.username + '.jpg', 'wb')
         f.write(photo)
         f.close()
-        if Bot.players.get(user.id) is None:
-            Bot.players[user.id] = Player(user.first_name, user.username, user.id)
         for admin in Bot.admins:
             keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
             accept = telebot.types.InlineKeyboardButton('✔', callback_data='1 ' + user.username + ' ' + str(Bot.players[user.id].photo))
@@ -104,11 +111,11 @@ def register(message):
             keyboard.add(accept, decline)
             try:
                 with open("photos/" + user.username + '.jpg', 'rb') as f:
-                    Bot.bot.send_photo(admin, f, reply_markup=keyboard, caption='@' + user.username)
+                    Bot.bot.send_photo(admin, f, reply_markup=keyboard, caption=f'@{user.username}\n{Bot.players[user.id].info}')
             except Exception as e:
                 print('error:' + str(e.args))
                 print('cause:', admin, 'on user', user.username)
-        Bot.bot.reply_to(message, 'Фото отправлено на проверку')
+        Bot.bot.reply_to(message, 'Анкета отправлена на проверку')
     else:
         msg = Bot.bot.send_message(user.id, "С фото что-то не так. Отправьте другое")
         Bot.bot.register_next_step_handler(msg, register)
@@ -163,8 +170,10 @@ def get_text_messages(message):
         if user.id in Bot.players and Bot.players[user.id].verified == 2:
             Bot.bot.send_message(message.from_user.id, "Вы уже зарегестрированы")
             return
-        Bot.bot.send_message(message.from_user.id, "Отправьте фото")
-        Bot.bot.register_next_step_handler(message, register)
+        Bot.bot.send_message(message.from_user.id,
+                                   "Введите имя, фамилию и номер курса через пробел\n_(первому и второму курсу магистратуры соотвествуют 5 и 6 курсы)_",
+                                   parse_mode="markdown")
+        Bot.bot.register_next_step_handler(message, set_info)
     if user.id in Bot.admins and message.text == "Начать":
         Bot.chain = shuffle(list(Bot.players.values()))
         for p in Bot.chain:
@@ -185,6 +194,8 @@ def get_text_messages(message):
         with open('chain', 'wb') as c_bin:
             pickle.dump(Bot.chain, c_bin, protocol=pickle.HIGHEST_PROTOCOL)
         sc_store(Bot.scheduler)
+        for admin in Bot.admins:
+            Bot.bot.send_message(admin, "Игра началась")
     if user.id in Bot.players and Bot.players[user.id].verified == 2 and message.text == "Ввести код убитого":
         if len(Bot.chain) == 0:
             Bot.bot.send_message(message.from_user.id, "Игра ещё не началась")
@@ -225,7 +236,10 @@ def get_text_messages(message):
     if user.id in Bot.admins and message.text == "Профиль игрока":
         msg = Bot.bot.send_message(message.from_user.id, "Введите юзернейм игрока (без символа '@')")
         Bot.bot.register_next_step_handler(msg, give_name)
-    if user.id in Bot.admins and len(Bot.chain) > 0 and message.text == "Цепочка":
+    if user.id in Bot.admins and message.text == "Цепочка":
+        if len(Bot.chain) == 0:
+            Bot.bot.send_message(user.id, "Игра ещё не началась")
+            return
         res = ""
         i = 0
         L = list(Bot.chain.keys())
@@ -233,9 +247,21 @@ def get_text_messages(message):
         while i < n - 1:
             res += L[i] + " -> " + L[i + 1] + "\n"
             i += 1
-        res += L[n - 1]
+        res += L[n - 1] + " -> " + L[0]
         Bot.bot.send_message(user.id, res)
 
 
 if __name__ == '__main__':
+    new = (input("Dou you want to start a new game? (y/n)") == "y")
+    if new:
+        if os.path.isfile("admins"):
+            os.remove("admins")
+        if os.path.isfile("players"):
+            os.remove("players")
+        if os.path.isfile("upd"):
+            os.remove("upd")
+        if os.path.isfile("scheduler"):
+            os.remove("scheduler")
+        if os.path.isfile("chain"):
+            os.remove("chain")
     Bot()

@@ -6,7 +6,7 @@ import pickle
 from storage import sc_store, sc_load
 
 token = "5984368305:AAGiY-V0GyTmZ4Z86F-0ZgYM5TRNiZfLzNA" # dump
-token = "5961739731:AAFpWrf2CLmEGgQyWUlTQDlXvLszR7JbRxQ" # killer_2wf_bot
+# token = "5961739731:AAFpWrf2CLmEGgQyWUlTQDlXvLszR7JbRxQ" # killer_2wf_bot
 
 
 class RegInfo:
@@ -48,7 +48,7 @@ class Player(User):
         self.info = RegInfo()
 
     def __str__(self):
-        return self.__repr__()
+        return super().__str__()
 
     def __repr__(self):
         info = super().__repr__()
@@ -73,20 +73,16 @@ class Admin(User):
     def check_player(self, tag='', id=0):
         if id in Bot.players:
             with open("photos/" + Bot.players[id].tag + ".jpg", "rb") as photo:
-                info = f"*{Bot.players[id].info}*\n" + str(Bot.players[id]).replace('_', '\\_')
+                info = f"*{Bot.players[id].info}*\n" + (Bot.players[id]).__repr__().replace('_', '\\_')
                 Bot.bot.send_photo(self.id, photo, caption=info, parse_mode='Markdown')
         elif (p := Bot.get(tag)) is not None:
             with open("photos/" + tag + ".jpg", "rb") as photo:
-                info = f"*{p.info}*\n" + str(p).replace('_', '\\_')
+                info = f"*{p.info}*\n" + p.__repr__().replace('_', '\\_')
                 Bot.bot.send_photo(self.id, photo, caption=info, parse_mode='Markdown')
         return
 
     def check_players(self):
-        # res = str(list(map(str, Bot.players.values())))[1:-1]
-        res = []
-        for p in Bot.players.values():
-            res.append(p.tag)
-        res = ','.join(res)
+        res = str(list(map(str, Bot.players.values())))[1:-1]
         if res == "":
             res = "Игроков нет"
         Bot.bot.send_message(self.id, res)
@@ -98,6 +94,7 @@ class Bot:
     players = dict()  # {id: Player}
     chain = dict()    # {tag: tag}
     scheduler = BackgroundScheduler()
+    state = 0  # 0 - game not started yet, 1 - is active, 2 - game's ended
 
     def __init__(self):
         try:
