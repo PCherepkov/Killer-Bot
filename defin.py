@@ -1,3 +1,4 @@
+from pytz import timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 import telebot
@@ -5,8 +6,7 @@ from shuffle import shuffle
 import pickle
 from storage import sc_store, sc_load
 
-token = "5984368305:AAGiY-V0GyTmZ4Z86F-0ZgYM5TRNiZfLzNA" # dump
-# token = "5961739731:AAFpWrf2CLmEGgQyWUlTQDlXvLszR7JbRxQ" # killer_2wf_bot
+token = "here was token"
 
 
 class RegInfo:
@@ -40,12 +40,14 @@ class Player(User):
     def __init__(self, name="", tag="", id=0):
         super().__init__(name, tag, id)
         self.victim = None
-        self.verified = 0  # 0 - no photo, 1 - bad photo, 2 - verified
+        self.verified = -1  # -1 - didn't initiate registration, 0 - no photo, 1 - bad photo, 2 - verified
         self.tries = 0
-        self.code = None
+        self.code = "code"
         self.photo = 0
         self.kills = 0
+        self.best_time = timedelta(days=3)  # more than 2 days
         self.info = RegInfo()
+        self.media = {"photo": [], "audio": [], "video": [], "document": [], "voice": []}
 
     def __str__(self):
         return super().__str__()
@@ -56,6 +58,13 @@ class Player(User):
         info += f"Жертва: {self.victim}\nКод: {self.code}"
         try:
             td = job.next_run_time.replace(tzinfo=None) - datetime.now()
+            info += f"\nУбийства: {self.kills}"
+            if self.kills > 0:
+                s = self.best_time.seconds
+                d = self.best_time.days
+                h, r = divmod(s, 3600)
+                m, s = divmod(r, 60)
+                info += f"\nЛучшее время убийства: {h + d * 24}:{m}:{int(s)}"
             s = td.seconds
             d = td.days
             h, r = divmod(s, 3600)
@@ -64,6 +73,9 @@ class Player(User):
         except:
             pass
         return info
+
+    def clear_media(self):
+        self.media = {"photo": [], "audio": [], "video": [], "document": []}
 
 
 class Admin(User):
@@ -122,7 +134,10 @@ class Bot:
             print(jobs_times)
             for j in jobs_times:
                 print(j, end=' ')
-                Bot.scheduler.add_job(id=j, func=jobs_times[j][1], trigger='date', run_date=jobs_times[j][0] + date,
+                # if Bot.get(j).kills == 0 and False:
+                #    rd = jobs_times[j][0] + date + timedelta(hours=4, minutes=25)
+                rd = jobs_times[j][0] + date  # + timedelta(hours=30)
+                Bot.scheduler.add_job(id=j, func=jobs_times[j][1], trigger='date', run_date=rd,
                                       args=[Bot.get(j).id])
                 print(jobs_times[j][0])
             Bot.scheduler.start()
@@ -135,7 +150,7 @@ class Bot:
         Bot.bot.infinity_polling(timeout=10, long_polling_timeout=5)
 
     @staticmethod
-    def get(name):
+    def get(name: str):
         for user in Bot.admins.values():
             if user.name == name or user.tag == name:
                 return user
@@ -145,11 +160,11 @@ class Bot:
         return None
 
     @staticmethod
-    def contains(name):
+    def contains(name: str):
         return False if Bot.get(name) is None else True
 
     @staticmethod
-    def kill(id):
+    def kill(id: int):
         dead = Bot.players[id]
         if dead is None:
             return
@@ -160,14 +175,23 @@ class Bot:
             if player.victim == dead.tag:
                 Bot.players[player.id].victim = dead.victim
                 Bot.players[player.id].kills += 1
-                Bot.chain[player.tag] = dead.tag
+                ttk = timedelta(days=2) - (Bot.scheduler.get_job(player.tag).next_run_time.replace(tzinfo=None) - datetime.now())
+                Bot.players[player.id].best_time = min(Bot.players[player.id].best_time, ttk)
+                Bot.chain[player.tag] = dead.victim
                 Bot.chain.pop(dead.tag)
                 Bot.scheduler.get_job(player.tag).reschedule('interval', days=2)
                 break
         Bot.scheduler.remove_job(dead.tag)
-        if len(Bot.chain) < 3:
+        if len(Bot.chain) < 2:
             for p in Bot.chain:
                 gif = open("congrats.gif", "rb")
                 Bot.bot.send_video(Bot.get(p).id, gif, caption="Игра окончена. Вы победили!")
                 gif.close()
-            Bot.bot.stop_bot()
+            for a in Bot.admins:
+                Bot.bot.send_message(a, "Игра окончена.")
+            record = "username | best time | number of kills\n"
+            for p in Bot.players:
+                record += f"{Bot.players[p].tag}: {Bot.players[p].best_time} | {Bot.players[p].kills}\n"
+            with open("stats.txt", "w") as stats:
+                stats.write(record)
+            Bot.bot.stop_polling()

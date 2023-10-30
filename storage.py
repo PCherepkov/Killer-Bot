@@ -21,7 +21,7 @@ def sc_store(s):
 
 # a function to load all the jobs from a file
 # DO NOT USE!!!
-def sc_load(path):
+def sc_load(path: str):
     sc = BackgroundScheduler()
     with open("scheduler", "rb") as s_bin:
         jobs_times = pickle.load(s_bin)

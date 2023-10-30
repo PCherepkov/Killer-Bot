@@ -3,17 +3,19 @@ from random import randint
 # TODO:
 #   - either prove the algorithm's correctness or give an example when it's wrong
 
-def check(arr):
+
+def check(arr: list):
     old = []
     i = 0
-    while True:
+    while True and len(arr) > 0:
         if i in old:
             break
         old.append(i)
         i = arr[i]
     return len(old) == len(arr)
 
-def shuffle(names):
+
+def shuffle(names: list):
     n = len(names)
     L = [x for x in range(n)]
     M = list(L)
@@ -29,6 +31,7 @@ def shuffle(names):
     print()
     print(L)
     return shuffle(n)
+
 
 if __name__ == '__main__':
     print(shuffle(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o']))
